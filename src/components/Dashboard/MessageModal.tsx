@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase, Message } from '../../lib/supabase';
 import { decryptMessage } from '../../lib/crypto';
-import { X, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { usePrivateKey } from '../../contexts/PrivateKeyContext';
+import { X, Lock, AlertCircle, Key, RefreshCw } from 'lucide-react';
 
 type MessageWithSender = Message & {
   sender: {
@@ -13,40 +14,48 @@ type MessageWithSender = Message & {
 type Props = {
   message: MessageWithSender;
   onClose: () => void;
+  onKeyError: () => void;
 };
 
-export default function MessageModal({ message, onClose }: Props) {
-  const [privateKey, setPrivateKey] = useState('');
+export default function MessageModal({ message, onClose, onKeyError }: Props) {
+  const { privateKey, isLoading: isKeyLoading, fetchPrivateKey } = usePrivateKey();
   const [decryptedContent, setDecryptedContent] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [showKey, setShowKey] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const handleDecrypt = async () => {
-    if (!privateKey.trim()) {
-      setError('Veuillez entrer votre clé privée');
-      return;
-    }
-
-    setError('');
-    setLoading(true);
-
-    try {
-      const decrypted = await decryptMessage(privateKey, message.encrypted_content);
-      setDecryptedContent(decrypted);
-
-      if (!message.read_at) {
-        await supabase
-          .from('messages')
-          .update({ read_at: new Date().toISOString() })
-          .eq('id', message.id);
+  useEffect(() => {
+    const decrypt = async () => {
+      if (!privateKey) {
+        setError('Clé privée non disponible. Assurez-vous qu\'elle est chargée.');
+        setLoading(false);
+        return;
       }
-    } catch (err) {
-      setError('Impossible de déchiffrer le message. Vérifiez votre clé privée.');
-    } finally {
-      setLoading(false);
+
+      setError('');
+      setLoading(true);
+
+      try {
+        const decrypted = await decryptMessage(privateKey, message.encrypted_content);
+        setDecryptedContent(decrypted);
+
+        if (!message.read_at) {
+          await supabase
+            .from('messages')
+            .update({ read_at: new Date().toISOString() })
+            .eq('id', message.id);
+        }
+      } catch {
+        setError('Impossible de déchiffrer le message. Votre clé est peut-être incorrecte ou corrompue.');
+        onKeyError();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (!isKeyLoading) {
+      decrypt();
     }
-  };
+  }, [privateKey, message, isKeyLoading, onKeyError]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('fr-FR', {
@@ -56,6 +65,73 @@ export default function MessageModal({ message, onClose }: Props) {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const renderContent = () => {
+    if (loading || isKeyLoading) {
+      return (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="text-gray-500 mt-4">Déchiffrement en cours...</p>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="space-y-6 text-center">
+          <AlertCircle className="w-16 h-16 text-red-400 mx-auto" />
+          <h3 className="text-xl font-semibold text-gray-800">Erreur de déchiffrement</h3>
+          <p className="text-gray-600">{error}</p>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-left flex items-start gap-3">
+             <Key className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+             <div>
+              <p className="text-sm text-red-900 font-medium mb-1">
+                Problème de clé privée
+              </p>
+              <p className="text-sm text-red-800">
+                Nous n'avons pas pu déchiffrer ce message avec la clé privée enregistrée. Elle est peut-être corrompue ou ne correspond pas à la clé publique utilisée pour chiffrer ce message.
+              </p>
+             </div>
+          </div>
+           <button
+            onClick={() => fetchPrivateKey()}
+            className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-3 px-4 rounded-lg font-medium hover:from-blue-700 hover:to-cyan-700 transition-all flex items-center justify-center gap-2"
+          >
+            <RefreshCw className="w-5 h-5" />
+            Réessayer de charger la clé
+          </button>
+        </div>
+      );
+    }
+
+    if (decryptedContent) {
+      return (
+        <>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
+            <Lock className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-green-800 font-medium">
+              Message déchiffré avec succès
+            </p>
+          </div>
+
+          <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+            <p className="text-gray-900 whitespace-pre-wrap leading-relaxed">
+              {decryptedContent}
+            </p>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="w-full bg-gray-200 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+          >
+            Fermer
+          </button>
+        </>
+      );
+    }
+
+    return null;
   };
 
   return (
@@ -82,81 +158,7 @@ export default function MessageModal({ message, onClose }: Props) {
         </div>
 
         <div className="p-6 space-y-6">
-          {!decryptedContent ? (
-            <>
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-                <Lock className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm text-amber-900 font-medium mb-1">
-                    Message protégé par chiffrement RSA
-                  </p>
-                  <p className="text-sm text-amber-800">
-                    Entrez votre clé privée pour déchiffrer et lire ce message.
-                  </p>
-                </div>
-              </div>
-
-              {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-red-800">{error}</p>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Clé privée RSA
-                </label>
-                <div className="relative">
-                  <textarea
-                    value={privateKey}
-                    onChange={(e) => setPrivateKey(e.target.value)}
-                    placeholder="Collez votre clé privée ici..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-mono text-sm resize-none"
-                    rows={6}
-                    style={{ WebkitTextSecurity: showKey ? 'none' : 'disc' }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowKey(!showKey)}
-                    className="absolute right-3 top-3 p-2 text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    {showKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                onClick={handleDecrypt}
-                disabled={loading}
-                className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-3 px-4 rounded-lg font-medium hover:from-blue-700 hover:to-cyan-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Déchiffrement...' : 'Déchiffrer le message'}
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
-                <Lock className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-green-800 font-medium">
-                  Message déchiffré avec succès
-                </p>
-              </div>
-
-              <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
-                <p className="text-gray-900 whitespace-pre-wrap leading-relaxed">
-                  {decryptedContent}
-                </p>
-              </div>
-
-              <button
-                onClick={onClose}
-                className="w-full bg-gray-200 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-300 transition-colors"
-              >
-                Fermer
-              </button>
-            </>
-          )}
+          {renderContent()}
         </div>
       </div>
     </div>

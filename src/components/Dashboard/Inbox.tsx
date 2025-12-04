@@ -11,7 +11,11 @@ type MessageWithSender = Message & {
   };
 };
 
-export default function Inbox() {
+type Props = {
+  onKeyError: () => void;
+};
+
+export default function Inbox({ onKeyError }: Props) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<MessageWithSender[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,6 +149,7 @@ export default function Inbox() {
             setSelectedMessage(null);
             loadMessages();
           }}
+          onKeyError={onKeyError}
         />
       )}
     </>

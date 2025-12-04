@@ -1,4 +1,5 @@
 import { useAuth } from './contexts/AuthContext';
+import { PrivateKeyProvider } from './contexts/PrivateKeyContext';
 import AuthPage from './components/Auth/AuthPage';
 import Dashboard from './components/Dashboard/Dashboard';
 
@@ -16,7 +17,15 @@ function App() {
     );
   }
 
-  return user ? <Dashboard /> : <AuthPage />;
+  if (!user) {
+    return <AuthPage />;
+  }
+
+  return (
+    <PrivateKeyProvider>
+      <Dashboard />
+    </PrivateKeyProvider>
+  );
 }
 
 export default App;
