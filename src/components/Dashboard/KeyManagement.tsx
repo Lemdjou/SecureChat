@@ -62,7 +62,7 @@ export default function KeyManagement() {
 
       setNewPrivateKey(keyPair.privateKey);
       await loadKeys();
-    } catch (err) {
+    } catch {
       alert('Erreur lors de la régénération de la clé');
     } finally {
       setRegenerating(false);

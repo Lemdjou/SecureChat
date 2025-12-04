@@ -84,7 +84,7 @@ export default function Dashboard() {
           </div>
 
           <div className="p-6">
-            {currentView === 'inbox' && <Inbox />}
+            {currentView === 'inbox' && <Inbox onKeyError={() => setCurrentView('keys')} />}
             {currentView === 'compose' && <Compose />}
             {currentView === 'keys' && <KeyManagement />}
           </div>
