@@ -1,10 +1,15 @@
 import requests
 import csv
+import os
 from bs4 import BeautifulSoup
+
+# Get the absolute path for the output file in the same directory as the script
+script_dir = os.path.dirname(os.path.abspath(__file__))
+output_path = os.path.join(script_dir, "quotes.csv")
 
 # Open the CSV file in write mode and create a writer object
 # This will keep the file open for the duration of the script
-with open("quotes.csv", "w", newline="", encoding="utf-8") as f:
+with open(output_path, "w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f)
     # Write the header row
     writer.writerow(["auteur", "citation"])
@@ -29,4 +34,4 @@ with open("quotes.csv", "w", newline="", encoding="utf-8") as f:
             # Write the author and quote to the CSV file
             writer.writerow([author, text])
 
-print("Scraping successful!")
+print(f"Scraping successful! File saved to: {output_path}")
