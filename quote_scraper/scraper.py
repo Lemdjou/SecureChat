@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 
 # Open the CSV file in write mode and create a writer object
 # This will keep the file open for the duration of the script
-with open("quote_scraper/quotes.csv", "w", newline="", encoding="utf-8") as f:
+with open("quotes.csv", "w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f)
     # Write the header row
     writer.writerow(["auteur", "citation"])
