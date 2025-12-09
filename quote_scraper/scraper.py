@@ -1,37 +1,46 @@
 import requests
 import csv
-import os
-from bs4 import BeautifulSoup
 
-# Get the absolute path for the output file in the same directory as the script
-script_dir = os.path.dirname(os.path.abspath(__file__))
-output_path = os.path.join(script_dir, "quotes.csv")
-
-# Open the CSV file in write mode and create a writer object
-# This will keep the file open for the duration of the script
-with open(output_path, "w", newline="", encoding="utf-8") as f:
+# Ouvre le fichier CSV en mode écriture. Le 'with' s'assure qu'il sera bien fermé.
+with open("quotes.csv", "w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f)
-    # Write the header row
+    # Écrit la première ligne (l'en-tête)
     writer.writerow(["auteur", "citation"])
 
-    # Loop through the first 10 pages of the website
+    # Boucle sur les 10 premières pages du site
     for page in range(1, 11):
         url = f"https://quotes.toscrape.com/page/{page}/"
-        print(f"Scraping: {url}")
+        print(f"Scraping en cours : {url}")
 
-        # Fetch the HTML content of the page
         r = requests.get(url)
-        soup = BeautifulSoup(r.text, "html.parser")
+        # Sépare le contenu HTML en une liste de lignes
+        html = r.text.split("\n")
 
-        # Find all the quote containers on the page
-        quotes = soup.find_all("div", class_="quote")
+        # Crée des listes vides pour stocker les données de la page actuelle
+        quotes_sur_page = []
+        auteurs_sur_page = []
 
-        # Extract the author and quote text from each container
-        for quote in quotes:
-            text = quote.find("span", class_="text").text
-            author = quote.find("small", class_="author").text
+        # Parcourt chaque ligne du HTML
+        for line in html:
+            # Si la ligne contient le début d'une citation
+            if '<span class="text" itemprop="text">' in line:
+                # Nettoie la ligne pour ne garder que le texte de la citation
+                quote = line.replace('<span class="text" itemprop="text">', '').replace('</span>', '').strip()
+                # Enlève les caractères “ et ” du début et de la fin
+                quote = quote.strip('“').strip('”')
+                quotes_sur_page.append(quote)
 
-            # Write the author and quote to the CSV file
-            writer.writerow([author, text])
+            # Si la ligne contient le nom d'un auteur
+            if '<span>by <small class="author" itemprop="author">' in line:
+                # Nettoie la ligne pour ne garder que le nom de l'auteur
+                author = line.replace('<span>by <small class="author" itemprop="author">', '').replace('</small>', '').strip()
+                auteurs_sur_page.append(author)
 
-print(f"Scraping successful! File saved to: {output_path}")
+        # Une fois la page entière analysée, on associe les auteurs et les citations
+        # On suppose qu'il y a autant d'auteurs que de citations sur la page
+        for i in range(len(quotes_sur_page)):
+            # On vérifie qu'un auteur existe bien pour cette citation pour éviter une erreur
+            if i < len(auteurs_sur_page):
+                writer.writerow([auteurs_sur_page[i], quotes_sur_page[i]])
+
+    print("Scraping terminé avec succès !")
